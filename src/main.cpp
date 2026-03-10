@@ -9,6 +9,8 @@
 #include <cstring>
 #include <vector>
 #include <algorithm>
+#include <map>
+#include <optional>
 
 constexpr uint32_t SCR_WIDTH = 800;
 constexpr uint32_t SCR_HEIGHT = 600;
@@ -38,6 +40,7 @@ private:
     GLFWwindow* window;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
     // Main functions
     void initWindow() {
@@ -52,6 +55,7 @@ private:
     void initVulkan() {
         createInstance();
         setupDebugMessenger();
+        pickPhysicalDevice();
     }
 
     void mainLoop() const {
@@ -115,6 +119,29 @@ private:
 
         if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
             throw std::runtime_error("Failed to set up debug messenger!");
+    }
+
+    void pickPhysicalDevice() {
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+        if (deviceCount == 0) throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+        // Use an ordered map to automatically sort candidates by increasing score
+        std::multimap<int, VkPhysicalDevice> candidates;
+
+        for (const auto& device : devices) {
+            int score = rateDeviceSuitability(device);
+            candidates.insert(std::make_pair(score, device));
+        }
+
+        // Check if the best candidate is suitable at all
+        if (candidates.rbegin()->first <= 0) throw std::runtime_error("failed to find a suitable GPU!");
+
+        physicalDevice = candidates.rbegin()->second;
     }
 
     // Helper functions
@@ -206,6 +233,47 @@ private:
         if (func != nullptr) func(instance, debugMessenger, pAllocator);
     }
 
+    struct QueueFamilyIndices {
+        std::optional<uint32_t> graphicsFamily;
+
+        [[nodiscard]] bool isComplete() const { return graphicsFamily.has_value(); }
+    };
+
+    static QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice device) {
+        QueueFamilyIndices indices;
+
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        uint32_t i = 0;
+        for (const auto& queueFamily : queueFamilies) {
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) indices.graphicsFamily = i;
+            if (indices.isComplete()) break;
+            i++;
+        } return indices;
+    }
+
+    static int rateDeviceSuitability(const VkPhysicalDevice device) {
+        VkPhysicalDeviceProperties deviceProperties;
+        VkPhysicalDeviceFeatures deviceFeatures;
+        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+        if (!findQueueFamilies(device).isComplete() || !deviceFeatures.geometryShader) return 0;
+
+        int score = 0;
+
+        // Discrete GPUs have a significant performance advantage
+        if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score += 1000;
+
+        // Maximum possible size of textures affects graphics quality
+        score += static_cast<int>(deviceProperties.limits.maxImageDimension2D);
+
+        return score;
+    }
 };
 
 int main() {
