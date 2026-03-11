@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <map>
 #include <optional>
+#include <set>
 
 #include "utils/logger/logger.h"
 
@@ -40,11 +41,16 @@ public:
 private:
     // Variables
     GLFWwindow* window;
+
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkSurfaceKHR surface;
+
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
+
+    VkQueue graphicsQueue;
+    VkQueue presentQueue;
 
     // Main functions
     void initWindow() {
@@ -148,7 +154,7 @@ private:
         std::multimap<int, VkPhysicalDevice> candidates;
 
         for (const auto& device : devices) {
-            int score = rateDeviceSuitability(device);
+            uint32_t score = rateDeviceSuitability(device);
             candidates.insert(std::make_pair(score, device));
         }
 
@@ -161,21 +167,29 @@ private:
     void createLogicalDevice() {
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-        queueCreateInfo.queueCount = 1;
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        std::set<uint32_t> uniqueQueueFamilies = {
+            indices.graphicsFamily.value(),
+            indices.presentFamily.value()
+        };
 
-        constexpr float queuePriority = 1.0f;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        float queuePriority = 1.0f;
+        for (uint32_t queueFamily : uniqueQueueFamilies) {
+            VkDeviceQueueCreateInfo queueCreateInfo{};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = queueFamily;
+            queueCreateInfo.queueCount = 1;
+            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfos.push_back(queueCreateInfo);
+        }
 
-        const VkPhysicalDeviceFeatures deviceFeatures{};
+        constexpr VkPhysicalDeviceFeatures deviceFeatures{};
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-        createInfo.pQueueCreateInfos = &queueCreateInfo;
-        createInfo.queueCreateInfoCount = 1;
+        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+        createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
         createInfo.pEnabledFeatures = &deviceFeatures;
 
@@ -189,6 +203,9 @@ private:
 
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
             logger.log(FATAL, "Failed to create logical device!");
+
+        vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+        vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
     }
 
     // Helper functions
@@ -308,7 +325,7 @@ private:
         } return indices;
     }
 
-    int rateDeviceSuitability(const VkPhysicalDevice device) {
+    uint32_t rateDeviceSuitability(const VkPhysicalDevice device) {
         VkPhysicalDeviceProperties deviceProperties;
         VkPhysicalDeviceFeatures deviceFeatures;
         vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -316,13 +333,13 @@ private:
 
         if (!findQueueFamilies(device).isComplete() || !deviceFeatures.geometryShader) return 0;
 
-        int score = 0;
+        uint32_t score = 0;
 
         // Discrete GPUs have a significant performance advantage
         if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score += 1000;
 
         // Maximum possible size of textures affects graphics quality
-        score += static_cast<int>(deviceProperties.limits.maxImageDimension2D);
+        score += deviceProperties.limits.maxImageDimension2D;
 
         return score;
     }
