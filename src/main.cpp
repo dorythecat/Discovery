@@ -4,7 +4,6 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
-#include <stdexcept>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
@@ -12,19 +11,22 @@
 #include <map>
 #include <optional>
 
+#include "utils/logger/logger.h"
+
 constexpr uint32_t SCR_WIDTH = 800;
 constexpr uint32_t SCR_HEIGHT = 600;
+
+#ifdef NDEBUG
+Logger logger;
+constexpr bool enableValidationLayers = false;
+#else
+Logger logger {VALIDATION};
+constexpr bool enableValidationLayers = true;
+#endif
 
 const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
 };
-
-// TODO: Move validation layers to their own helper class
-#ifdef NDEBUG
-constexpr bool enableValidationLayers = false;
-#else
-constexpr bool enableValidationLayers = true;
-#endif
 
 class HelloTriangleApplication {
 public:
@@ -81,7 +83,7 @@ private:
     void createInstance() {
         if constexpr (enableValidationLayers)
             if (!checkValidationLayerSupport())
-                throw std::runtime_error("Validation layers requested, but not available!");
+                logger.log(FATAL, "Validation layers requested, but not available!");
 
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -112,7 +114,7 @@ private:
         }
 
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
-            throw std::runtime_error("Failed to create Vulkan instance!");
+            logger.log(FATAL, "Failed to create Vulkan instance!");
     }
 
     void setupDebugMessenger() {
@@ -122,14 +124,14 @@ private:
         populateDebugMessengerCreateInfo(createInfo);
 
         if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
-            throw std::runtime_error("Failed to set up debug messenger!");
+            logger.log(FATAL, "Failed to set up debug messenger!");
     }
 
     void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
-        if (deviceCount == 0) throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+        if (deviceCount == 0) logger.log(FATAL, "Failed to find GPUs with Vulkan support!");
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
@@ -143,7 +145,7 @@ private:
         }
 
         // Check if the best candidate is suitable at all
-        if (candidates.rbegin()->first <= 0) throw std::runtime_error("failed to find a suitable GPU!");
+        if (candidates.rbegin()->first <= 0) logger.log(FATAL, "Failed to find a suitable GPU!");
 
         physicalDevice = candidates.rbegin()->second;
     }
@@ -159,7 +161,7 @@ private:
         constexpr float queuePriority = 1.0f;
         queueCreateInfo.pQueuePriorities = &queuePriority;
 
-        VkPhysicalDeviceFeatures deviceFeatures{};
+        const VkPhysicalDeviceFeatures deviceFeatures{};
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -178,7 +180,7 @@ private:
         }
 
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
-            throw std::runtime_error("Failed to create logical device!");
+            logger.log(FATAL, "Failed to create logical device!");
     }
 
     // Helper functions
@@ -219,12 +221,12 @@ private:
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
 #ifndef NDEBUG
-        std::cout << "Available extensions:" << std::endl;
+        logger.log(DEBUG, "Available extensions:");
 
         for (const auto&[extensionName, _] : extensions)
             std::cout << '\t' << "- " << extensionName << std::endl;
 
-        std::cout << "GLFW required extensions:" << std::endl;
+        logger.log(DEBUG, "GLFW required extensions:");
 
         for (const auto& extension : requiredExtensions)
             std::cout << '\t' << "- " << extension << std::endl;
@@ -238,7 +240,7 @@ private:
             return std::ranges::any_of(extensions, [reqExt](const auto& ext) {
                 return strcmp(reqExt, ext.extensionName) == 0;
             });
-        })) throw std::runtime_error("Lacking required Vulkan extension(s)!");
+        })) logger.log(FATAL, "Lacking required Vulkan extension(s)!");
         return requiredExtensions;
     }
 
@@ -246,7 +248,7 @@ private:
                                                         VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                                                         void* pUserData) {
-        std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+        logger.log( VALIDATION, pCallbackData->pMessage);
         return VK_FALSE;
     }
 
@@ -318,7 +320,6 @@ int main() {
         HelloTriangleApplication app;
         app.run();
     } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
-        return EXIT_FAILURE;
+        logger.log(FATAL, e.what());
     } return EXIT_SUCCESS;
 }
