@@ -42,6 +42,7 @@ private:
     GLFWwindow* window;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
+    VkSurfaceKHR surface;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
 
@@ -58,6 +59,7 @@ private:
     void initVulkan() {
         createInstance();
         setupDebugMessenger();
+        createSurface();
         pickPhysicalDevice();
         createLogicalDevice();
     }
@@ -73,6 +75,7 @@ private:
 
         if constexpr (enableValidationLayers) DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 
+        vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
 
         glfwDestroyWindow(window);
@@ -125,6 +128,11 @@ private:
 
         if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
             logger.log(FATAL, "Failed to set up debug messenger!");
+    }
+
+    void createSurface() {
+        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
+            logger.log(FATAL, "Failed to create window surface!");
     }
 
     void pickPhysicalDevice() {
@@ -274,11 +282,12 @@ private:
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
+        std::optional<uint32_t> presentFamily;
 
-        [[nodiscard]] bool isComplete() const { return graphicsFamily.has_value(); }
+        [[nodiscard]] bool isComplete() const { return graphicsFamily.has_value() && presentFamily.has_value(); }
     };
 
-    static QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice device) {
+    QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice device) {
         QueueFamilyIndices indices;
 
         uint32_t queueFamilyCount = 0;
@@ -289,13 +298,17 @@ private:
 
         uint32_t i = 0;
         for (const auto& queueFamily : queueFamilies) {
+            VkBool32 presentSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) indices.graphicsFamily = i;
+            if (presentSupport) indices.presentFamily = i;
             if (indices.isComplete()) break;
             i++;
         } return indices;
     }
 
-    static int rateDeviceSuitability(const VkPhysicalDevice device) {
+    int rateDeviceSuitability(const VkPhysicalDevice device) {
         VkPhysicalDeviceProperties deviceProperties;
         VkPhysicalDeviceFeatures deviceFeatures;
         vkGetPhysicalDeviceProperties(device, &deviceProperties);
