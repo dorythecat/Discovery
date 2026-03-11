@@ -17,10 +17,10 @@ constexpr uint32_t SCR_WIDTH = 800;
 constexpr uint32_t SCR_HEIGHT = 600;
 
 #ifdef NDEBUG
-Logger logger;
+const Logger logger {ERROR}; // Only log errors
 constexpr bool enableValidationLayers = false;
 #else
-Logger logger {VALIDATION};
+const Logger logger {VALIDATION}; // Log EVERYTHING
 constexpr bool enableValidationLayers = true;
 #endif
 
