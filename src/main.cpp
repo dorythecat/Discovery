@@ -68,6 +68,8 @@ private:
     VkPipelineLayout _pipelineLayout;
     VkPipeline _graphicsPipeline;
 
+    std::vector<VkFramebuffer> _swapChainFramebuffers;
+
     // Main functions
     void initWindow() {
         glfwInit();
@@ -88,6 +90,7 @@ private:
         createImageViews();
         createRenderPass();
         createGraphicsPipeline();
+        createFramebuffers();
     }
 
     void mainLoop() const {
@@ -97,6 +100,9 @@ private:
     }
 
     void cleanup() const {
+        for (const auto framebuffer : _swapChainFramebuffers)
+            vkDestroyFramebuffer(_device, framebuffer, nullptr);
+
         vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
         vkDestroyRenderPass(_device, _renderPass, nullptr);
@@ -492,6 +498,29 @@ private:
         // Clean up shader modules
         vkDestroyShaderModule(_device, fragShaderModule, nullptr);
         vkDestroyShaderModule(_device, vertShaderModule, nullptr);
+    }
+
+    void createFramebuffers() {
+        _swapChainFramebuffers.resize(_swapChainImageViews.size());
+
+        for (size_t i = 0; i < _swapChainImageViews.size(); i++) {
+            VkImageView attachments[] = {
+                _swapChainImageViews[i]
+            };
+
+            VkFramebufferCreateInfo framebufferInfo{};
+            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebufferInfo.renderPass = _renderPass;
+            framebufferInfo.attachmentCount = 1;
+            framebufferInfo.pAttachments = attachments;
+            framebufferInfo.width = _swapChainExtent.width;
+            framebufferInfo.height = _swapChainExtent.height;
+            framebufferInfo.layers = 1;
+
+            if (vkCreateFramebuffer(_device, &framebufferInfo, nullptr, &_swapChainFramebuffers[i]) != VK_SUCCESS)
+                logger.log(FATAL, "Failed to create framebuffer!");
+        }
+
     }
 
     // Helper functions
