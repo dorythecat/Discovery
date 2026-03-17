@@ -14,13 +14,15 @@ enum LogLevel : uint8_t {
     VALIDATION = 5
 };
 
+#if NDEBUG
+const LogLevel level = ERROR; // Only log errors
+#else
+const LogLevel level = VALIDATION; // Log EVERYTHING
+#endif
+
 class Logger {
 public:
-    LogLevel level;
-
-    explicit Logger(const LogLevel level = ERROR) : level(level) {}
-
-    void log(const LogLevel severity, const char* message) const {
+    static void log(const LogLevel severity, const char* message) {
         if (severity > level) return;
         switch (severity) {
             case FATAL:

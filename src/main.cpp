@@ -20,10 +20,8 @@ constexpr uint32_t SCR_WIDTH = 800;
 constexpr uint32_t SCR_HEIGHT = 600;
 
 #ifdef NDEBUG
-const Logger logger {ERROR}; // Only log errors
 constexpr bool enableValidationLayers = false;
 #else
-const Logger logger {VALIDATION}; // Log EVERYTHING
 constexpr bool enableValidationLayers = true;
 #endif
 
@@ -173,7 +171,7 @@ private:
         submitInfo.pSignalSemaphores = signalSemaphores;
 
         if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFence) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to submit draw command buffer!");
+            Logger::log(FATAL, "Failed to submit draw command buffer!");
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -194,7 +192,7 @@ private:
     void createInstance() {
         if constexpr (enableValidationLayers)
             if (!checkValidationLayerSupport())
-                logger.log(FATAL, "Validation layers requested, but not available!");
+                Logger::log(FATAL, "Validation layers requested, but not available!");
 
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -225,7 +223,7 @@ private:
         }
 
         if (vkCreateInstance(&createInfo, nullptr, &_instance) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create Vulkan instance!");
+            Logger::log(FATAL, "Failed to create Vulkan instance!");
     }
 
     void setupDebugMessenger() {
@@ -235,19 +233,19 @@ private:
         populateDebugMessengerCreateInfo(createInfo);
 
         if (CreateDebugUtilsMessengerEXT(_instance, &createInfo, nullptr, &_debugMessenger) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to set up debug messenger!");
+            Logger::log(FATAL, "Failed to set up debug messenger!");
     }
 
     void createSurface() {
         if (glfwCreateWindowSurface(_instance, _window, nullptr, &_surface) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create window surface!");
+            Logger::log(FATAL, "Failed to create window surface!");
     }
 
     void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(_instance, &deviceCount, nullptr);
 
-        if (deviceCount == 0) logger.log(FATAL, "Failed to find GPUs with Vulkan support!");
+        if (deviceCount == 0) Logger::log(FATAL, "Failed to find GPUs with Vulkan support!");
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(_instance, &deviceCount, devices.data());
@@ -261,7 +259,7 @@ private:
         }
 
         // Check if the best candidate is suitable at all
-        if (candidates.rbegin()->first <= 0) logger.log(FATAL, "Failed to find a suitable GPU!");
+        if (candidates.rbegin()->first <= 0) Logger::log(FATAL, "Failed to find a suitable GPU!");
 
         _physicalDevice = candidates.rbegin()->second;
     }
@@ -305,7 +303,7 @@ private:
         }
 
         if (vkCreateDevice(_physicalDevice, &createInfo, nullptr, &_device) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create logical device!");
+            Logger::log(FATAL, "Failed to create logical device!");
 
         vkGetDeviceQueue(_device, indices.graphicsFamily.value(), 0, &_graphicsQueue);
         vkGetDeviceQueue(_device, indices.presentFamily.value(), 0, &_presentQueue);
@@ -352,7 +350,7 @@ private:
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
         if (vkCreateSwapchainKHR(_device, &createInfo, nullptr, &_swapChain) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create swap chain!");
+            Logger::log(FATAL, "Failed to create swap chain!");
 
         vkGetSwapchainImagesKHR(_device, _swapChain, &imageCount, nullptr);
         _swapChainImages.resize(imageCount);
@@ -385,7 +383,7 @@ private:
             createInfo.subresourceRange.layerCount = 1;
 
             if (vkCreateImageView(_device, &createInfo, nullptr, &_swapChainImageViews[i]) != VK_SUCCESS)
-                logger.log(FATAL, "Failed to create image views!");
+                Logger::log(FATAL, "Failed to create image views!");
         }
     }
 
@@ -427,7 +425,7 @@ private:
         renderPassInfo.pDependencies = &dependency;
 
         if (vkCreateRenderPass(_device, &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create render pass!");
+            Logger::log(FATAL, "Failed to create render pass!");
     }
 
     void createGraphicsPipeline() {
@@ -597,7 +595,7 @@ private:
             framebufferInfo.layers = 1;
 
             if (vkCreateFramebuffer(_device, &framebufferInfo, nullptr, &_swapChainFramebuffers[i]) != VK_SUCCESS)
-                logger.log(FATAL, "Failed to create framebuffer!");
+                Logger::log(FATAL, "Failed to create framebuffer!");
         }
     }
 
@@ -608,7 +606,7 @@ private:
         poolInfo.queueFamilyIndex = findQueueFamilies(_physicalDevice).graphicsFamily.value();
 
         if (vkCreateCommandPool(_device, &poolInfo, nullptr, &_commandPool) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create command pool!");
+            Logger::log(FATAL, "Failed to create command pool!");
     }
 
     void createCommandBuffer() {
@@ -619,7 +617,7 @@ private:
         allocInfo.commandBufferCount = 1;
 
         if (vkAllocateCommandBuffers(_device, &allocInfo, &_commandBuffer) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to allocate command buffers!");
+            Logger::log(FATAL, "Failed to allocate command buffers!");
     }
 
     void createSyncObjects() {
@@ -631,11 +629,11 @@ private:
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
         if (vkCreateSemaphore(_device, &semaphoreInfo, nullptr, &_imageAvailableSemaphore) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create image available semaphore!");
+            Logger::log(FATAL, "Failed to create image available semaphore!");
         if (vkCreateSemaphore(_device, &semaphoreInfo, nullptr, &_renderFinishedSemaphore) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create render finished semaphore!");
+            Logger::log(FATAL, "Failed to create render finished semaphore!");
         if (vkCreateFence(_device, &fenceInfo, nullptr, &_inFlightFence) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create in-flight fence!");
+            Logger::log(FATAL, "Failed to create in-flight fence!");
     }
 
     // Helper functions
@@ -676,12 +674,12 @@ private:
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
 #ifndef NDEBUG
-        logger.log(DEBUG, "Available extensions:");
+        Logger::log(DEBUG, "Available extensions:");
 
         for (const auto&[extensionName, _] : extensions)
             std::cout << '\t' << "- " << extensionName << std::endl;
 
-        logger.log(DEBUG, "GLFW required extensions:");
+        Logger::log(DEBUG, "GLFW required extensions:");
 
         for (const auto& extension : requiredExtensions)
             std::cout << '\t' << "- " << extension << std::endl;
@@ -695,7 +693,7 @@ private:
             return std::ranges::any_of(extensions, [reqExt](const auto& ext) {
                 return strcmp(reqExt, ext.extensionName) == 0;
             });
-        })) logger.log(FATAL, "Lacking required Vulkan extension(s)!");
+        })) Logger::log(FATAL, "Lacking required Vulkan extension(s)!");
         return requiredExtensions;
     }
 
@@ -703,7 +701,7 @@ private:
                                                         VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                                                         void* pUserData) {
-        logger.log( VALIDATION, pCallbackData->pMessage);
+        Logger::log( VALIDATION, pCallbackData->pMessage);
         return VK_FALSE;
     }
 
@@ -866,7 +864,7 @@ private:
     static std::vector<char> readFile(const std::string& filename) {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
-        if (!file.is_open()) logger.log(FATAL, "Failed to open file!");
+        if (!file.is_open()) Logger::log(FATAL, "Failed to open file!");
 
         const size_t fileSize = file.tellg();
         std::vector<char> buffer(fileSize);
@@ -886,7 +884,7 @@ private:
 
         VkShaderModule shaderModule;
         if (vkCreateShaderModule(_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to create shader module!");
+            Logger::log(FATAL, "Failed to create shader module!");
         return shaderModule;
     }
 
@@ -897,7 +895,7 @@ private:
         beginInfo.pInheritanceInfo = nullptr; // Optional
 
         if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to begin recording command buffer!");
+            Logger::log(FATAL, "Failed to begin recording command buffer!");
 
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -934,7 +932,7 @@ private:
         vkCmdEndRenderPass(commandBuffer);
 
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-            logger.log(FATAL, "Failed to record command buffer!");
+            Logger::log(FATAL, "Failed to record command buffer!");
     }
 };
 
@@ -943,6 +941,6 @@ int main() {
         HelloTriangleApplication app;
         app.run();
     } catch (const std::exception& e) {
-        logger.log(FATAL, e.what());
+        Logger::log(FATAL, e.what());
     } return EXIT_SUCCESS;
 }
