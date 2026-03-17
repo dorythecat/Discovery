@@ -568,7 +568,8 @@ private:
         if (vkCreateGraphicsPipelines(
             _device,
             VK_NULL_HANDLE,
-            1, &pipelineInfo,
+            1,
+            &pipelineInfo,
             nullptr,
             &_graphicsPipeline) != VK_SUCCESS) throw std::runtime_error("failed to create graphics pipeline!");
 
