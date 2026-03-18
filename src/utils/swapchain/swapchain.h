@@ -15,6 +15,10 @@ public:
     explicit SwapChain(const std::unique_ptr<Device> &device);
     ~SwapChain();
 
+    SwapChain(const SwapChain &swapChain) = delete;
+    SwapChain& operator=(const SwapChain &swapChain) = delete;
+
+    Device* getDevice() const { return _device; }
     VkSwapchainKHR getSwapChain() const {
         if (_swapChain == nullptr)
             Logger::log(FATAL, "Tried to access swap chain before creation!");
