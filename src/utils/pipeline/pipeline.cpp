@@ -45,7 +45,7 @@ void Pipeline::renderFrame() {
                                             _swapChain->getSwapChain(),
                                             UINT64_MAX,
                                             _imageAvailableSemaphores[_currentFrame],
-                                            VK_NULL_HANDLE,
+                                            nullptr,
                                             &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -283,12 +283,12 @@ void Pipeline::createGraphicsPipeline() {
     pipelineInfo.layout = _pipelineLayout;
     pipelineInfo.renderPass = _renderPass;
     pipelineInfo.subpass = 0;
-    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+    pipelineInfo.basePipelineHandle = nullptr; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
 
     if (vkCreateGraphicsPipelines(
             _device->getDevice(),
-            VK_NULL_HANDLE,
+            nullptr,
             1,
             &pipelineInfo,
             nullptr,

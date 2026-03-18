@@ -21,9 +21,8 @@ Buffer::Buffer(Device* device,
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-    if (vkAllocateMemory(_device->getDevice(), &allocInfo, nullptr, &_memory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate buffer memory!");
-    }
+    if (vkAllocateMemory(_device->getDevice(), &allocInfo, nullptr, &_memory) != VK_SUCCESS)
+        Logger::log(FATAL, "Failed to allocate buffer memory!");
 
     vkBindBufferMemory(_device->getDevice(), _buffer, _memory, 0);
 }
@@ -33,7 +32,7 @@ Buffer::~Buffer() {
     vkFreeMemory(_device->getDevice(), _memory, nullptr);
 }
 
-void Buffer::copyTo(Buffer* dst, const VkDeviceSize size, const VkCommandPool commandPool) const {
+void Buffer::copyTo(const Buffer* dst, const VkDeviceSize size, const VkCommandPool commandPool) const {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -62,7 +61,7 @@ void Buffer::copyTo(Buffer* dst, const VkDeviceSize size, const VkCommandPool co
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(_device->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueSubmit(_device->getGraphicsQueue(), 1, &submitInfo, nullptr);
     vkQueueWaitIdle(_device->getGraphicsQueue());
 
     vkFreeCommandBuffers(_device->getDevice(), commandPool, 1, &commandBuffer);
