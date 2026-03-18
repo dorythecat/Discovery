@@ -7,14 +7,16 @@ Pipeline::Pipeline(const std::unique_ptr<SwapChain> &swapChain) : _swapChain(swa
     createGraphicsPipeline();
     createFramebuffers();
     createCommandPool();
-    createCommandBuffer();
+    createCommandBuffers();
     createSyncObjects();
 }
 
 Pipeline::~Pipeline() {
-    vkDestroySemaphore(_device->getDevice(), _imageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(_device->getDevice(), _renderFinishedSemaphore, nullptr);
-    vkDestroyFence(_device->getDevice(), _inFlightFence, nullptr);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroySemaphore(_device->getDevice(), _imageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(_device->getDevice(), _renderFinishedSemaphores[i], nullptr);
+        vkDestroyFence(_device->getDevice(), _inFlightFences[i], nullptr);
+    }
 
     vkDestroyCommandPool(_device->getDevice(), _commandPool, nullptr);
 
@@ -27,36 +29,43 @@ Pipeline::~Pipeline() {
 }
 
 void Pipeline::renderFrame() {
-    vkWaitForFences(_device->getDevice(), 1, &_inFlightFence, VK_TRUE, UINT64_MAX);
-    vkResetFences(_device->getDevice(), 1, &_inFlightFence);
+    vkWaitForFences(_device->getDevice(),
+                    1,
+                    &_inFlightFences[_currentFrame],
+                    VK_TRUE,
+                    UINT64_MAX);
+    vkResetFences(_device->getDevice(), 1, &_inFlightFences[_currentFrame]);
 
     uint32_t imageIndex;
     vkAcquireNextImageKHR(_device->getDevice(),
                           _swapChain->getSwapChain(),
                           UINT64_MAX,
-                          _imageAvailableSemaphore,
+                          _imageAvailableSemaphores[_currentFrame],
                           VK_NULL_HANDLE,
                           &imageIndex);
 
-    vkResetCommandBuffer(_commandBuffer, 0);
-    recordCommandBuffer(_commandBuffer, imageIndex);
+    vkResetCommandBuffer(_commandBuffers[_currentFrame], 0);
+    recordCommandBuffer(_commandBuffers[_currentFrame], imageIndex);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = { _imageAvailableSemaphore };
+    VkSemaphore waitSemaphores[] = { _imageAvailableSemaphores[_currentFrame] };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &_commandBuffer;
+    submitInfo.pCommandBuffers = &_commandBuffers[_currentFrame];
 
-    VkSemaphore signalSemaphores[] = { _renderFinishedSemaphore };
+    VkSemaphore signalSemaphores[] = { _renderFinishedSemaphores[_currentFrame] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(_device->getGraphicsQueue(), 1, &submitInfo, _inFlightFence) != VK_SUCCESS)
+    if (vkQueueSubmit(_device->getGraphicsQueue(),
+                      1,
+                      &submitInfo,
+                      _inFlightFences[_currentFrame]) != VK_SUCCESS)
         Logger::log(FATAL, "Failed to submit draw command buffer!");
 
     VkPresentInfoKHR presentInfo{};
@@ -113,6 +122,8 @@ void Pipeline::createRenderPass() {
 
     if (vkCreateRenderPass(_device->getDevice(), &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
         Logger::log(FATAL, "Failed to create render pass!");
+
+    _currentFrame = (_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Pipeline::createGraphicsPipeline() {
@@ -300,18 +311,26 @@ void Pipeline::createCommandPool() {
         Logger::log(FATAL, "Failed to create command pool!");
 }
 
-void Pipeline::createCommandBuffer() {
+void Pipeline::createCommandBuffers() {
+    _commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = _commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
+    allocInfo.commandBufferCount = static_cast<uint32_t>(_commandBuffers.size());
 
-    if (vkAllocateCommandBuffers(_device->getDevice(), &allocInfo, &_commandBuffer) != VK_SUCCESS)
+    if (vkAllocateCommandBuffers(_device->getDevice(),
+                                 &allocInfo,
+                                 _commandBuffers.data()) != VK_SUCCESS)
         Logger::log(FATAL, "Failed to allocate command buffers!");
 }
 
 void Pipeline::createSyncObjects() {
+    _imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    _renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    _inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -319,12 +338,23 @@ void Pipeline::createSyncObjects() {
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    if (vkCreateSemaphore(_device->getDevice(), &semaphoreInfo, nullptr, &_imageAvailableSemaphore) != VK_SUCCESS)
-        Logger::log(FATAL, "Failed to create image available semaphore!");
-    if (vkCreateSemaphore(_device->getDevice(), &semaphoreInfo, nullptr, &_renderFinishedSemaphore) != VK_SUCCESS)
-        Logger::log(FATAL, "Failed to create render finished semaphore!");
-    if (vkCreateFence(_device->getDevice(), &fenceInfo, nullptr, &_inFlightFence) != VK_SUCCESS)
-        Logger::log(FATAL, "Failed to create in-flight fence!");
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (vkCreateSemaphore(_device->getDevice(),
+                              &semaphoreInfo,
+                              nullptr,
+                              &_imageAvailableSemaphores[i]) != VK_SUCCESS)
+            Logger::log(FATAL, "Failed to create image available semaphore!");
+        if (vkCreateSemaphore(_device->getDevice(),
+                              &semaphoreInfo,
+                              nullptr,
+                              &_renderFinishedSemaphores[i]) != VK_SUCCESS)
+            Logger::log(FATAL, "Failed to create render finished semaphore!");
+        if (vkCreateFence(_device->getDevice(),
+                          &fenceInfo,
+                          nullptr,
+                          &_inFlightFences[i]) != VK_SUCCESS)
+            Logger::log(FATAL, "Failed to create in-flight fence!");
+    }
 }
 
 std::vector<char> Pipeline::readFile(const std::string &filename) {

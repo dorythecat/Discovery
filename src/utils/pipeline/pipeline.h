@@ -11,6 +11,8 @@
 #include "../swapchain/swapchain.h"
 #include "../device/device.h"
 
+constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+
 class Pipeline {
 public:
     Pipeline(const std::unique_ptr<SwapChain> &swapChain);
@@ -32,18 +34,20 @@ private:
 
     // TODO: Abstract command pools and buffers
     VkCommandPool _commandPool{};
-    VkCommandBuffer _commandBuffer{};
+    std::vector<VkCommandBuffer> _commandBuffers;
 
     // TODO(maybe): Abstract sync objects
-    VkSemaphore _imageAvailableSemaphore{};
-    VkSemaphore _renderFinishedSemaphore{};
-    VkFence _inFlightFence{};
+    std::vector<VkSemaphore> _imageAvailableSemaphores;
+    std::vector<VkSemaphore> _renderFinishedSemaphores;
+    std::vector<VkFence> _inFlightFences;
+
+    uint32_t _currentFrame = 0;
 
     void createRenderPass();
     void createGraphicsPipeline();
     void createFramebuffers();
     void createCommandPool();
-    void createCommandBuffer();
+    void createCommandBuffers();
     void createSyncObjects();
 
     // TODO: Move the shader handling to its own class
