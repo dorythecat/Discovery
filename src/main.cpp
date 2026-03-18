@@ -4,13 +4,19 @@
 #include "utils/logger/logger.h"
 #include "utils/window/window.h"
 #include "utils/device/device.h"
-#include "utils/swapchain/swapchain.h"
 #include "utils/pipeline/pipeline.h"
 
 class HelloTriangleApplication {
 public:
     HelloTriangleApplication() {}
-    ~HelloTriangleApplication() {}
+    ~HelloTriangleApplication() {
+        _device->waitIdle(); // Wait for resources to be freed before deleting them
+
+        // Explicitly destroy all unique pointers and their contents
+        _pipeline.reset();
+        _device.reset();
+        _window.reset();
+    }
 
     void run() const {
         mainLoop();

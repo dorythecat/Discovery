@@ -6,7 +6,6 @@ Device::Device(const std::unique_ptr<Window> &window) : _window(window.get()) {
 }
 
 Device::~Device() {
-    vkDeviceWaitIdle(_device); // Make sure device isn't in use when destroying it
     vkDestroyDevice(_device, nullptr);
 }
 
