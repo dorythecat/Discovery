@@ -5,14 +5,13 @@
 
 #include <limits>
 #include <vector>
-#include <memory>
 
 #include "../logger/logger.h"
 #include "../device/device.h"
 
 class SwapChain {
 public:
-    explicit SwapChain(const std::unique_ptr<Device> &device);
+    explicit SwapChain(Device* device);
     ~SwapChain();
 
     SwapChain(const SwapChain &swapChain) = delete;

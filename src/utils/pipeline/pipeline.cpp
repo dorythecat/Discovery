@@ -1,7 +1,8 @@
 #include "pipeline.h"
 
-Pipeline::Pipeline(const std::unique_ptr<SwapChain> &swapChain) : _swapChain(swapChain.get()) {
-    _device = _swapChain->getDevice();
+Pipeline::Pipeline(const std::unique_ptr<Device> &device) : _device(device.get()) {
+    // Swapchain class handles the swap chain, swap chain images, and the framebuffers for us
+    _swapChain = std::make_unique<SwapChain>(_device);
 
     createRenderPass();
     createGraphicsPipeline();
@@ -23,9 +24,11 @@ Pipeline::~Pipeline() {
     vkDestroyPipeline(_device->getDevice(), _graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(_device->getDevice(), _pipelineLayout, nullptr);
     vkDestroyRenderPass(_device->getDevice(), _renderPass, nullptr);
+
+    _swapChain.reset();
 }
 
-void Pipeline::renderFrame() {
+void Pipeline::renderFrame() const {
     vkWaitForFences(_device->getDevice(),
                     1,
                     &_inFlightFences[_currentFrame],

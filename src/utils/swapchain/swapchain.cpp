@@ -1,6 +1,6 @@
 #include "swapchain.h"
 
-SwapChain::SwapChain(const std::unique_ptr<Device> &device) : _device(device.get()) {
+SwapChain::SwapChain(Device* device) : _device(device) {
     createSwapChain();
     createImageViews();
 }

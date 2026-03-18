@@ -21,10 +21,8 @@ private:
     std::unique_ptr<Window> _window = std::make_unique<Window>(); // Window class handles the instance, debug messenger, and surface for us
     // Device class handles the physical and logical devices for us, as well as the queues
     std::unique_ptr<Device> _device = std::make_unique<Device>(_window);
-    // Swapchain class handles the swap chain, swap chain images, and the framebuffers for us
-    std::unique_ptr<SwapChain> _swapChain = std::make_unique<SwapChain>(_device);
     // Pipeline class handles the graphics pipeline, signaling, and rendering to the screen
-    std::unique_ptr<Pipeline> _pipeline = std::make_unique<Pipeline>(_swapChain);
+    std::unique_ptr<Pipeline> _pipeline = std::make_unique<Pipeline>(_device);
 
     void mainLoop() const {
         while (!_window->shouldClose()) {

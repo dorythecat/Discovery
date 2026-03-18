@@ -15,15 +15,15 @@ constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 class Pipeline {
 public:
-    Pipeline(const std::unique_ptr<SwapChain> &swapChain);
+    Pipeline(const std::unique_ptr<Device> &device);
     ~Pipeline();
 
     Pipeline(const Pipeline &pipeline) = delete;
     Pipeline& operator=(const Pipeline &pipeline) = delete;
 
-    void renderFrame();
+    void renderFrame() const;
 private:
-    SwapChain* _swapChain;
+    std::unique_ptr<SwapChain> _swapChain;
     Device* _device;
 
     VkRenderPass _renderPass{};
