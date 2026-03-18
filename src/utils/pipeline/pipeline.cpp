@@ -16,8 +16,7 @@ Pipeline::Pipeline(const std::unique_ptr<Device> &device) : _device(device.get()
 Pipeline::~Pipeline() {
     _swapChain.reset();
 
-    vkDestroyBuffer(_device->getDevice(), _vertexBuffer, nullptr);
-    vkFreeMemory(_device->getDevice(), _vertexBufferMemory, nullptr);
+    _vertexBuffer.reset();
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(_device->getDevice(), _imageAvailableSemaphores[i], nullptr);
@@ -308,32 +307,17 @@ void Pipeline::createCommandPool() {
 }
 
 void Pipeline::createVertexBuffer() {
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = sizeof(vertices[0]) * vertices.size();
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    if (vkCreateBuffer(_device->getDevice(), &bufferInfo, nullptr, &_vertexBuffer) != VK_SUCCESS)
-        Logger::log(FATAL, "Failed to create vertex buffer!");
-
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(_device->getDevice(), _vertexBuffer, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
-                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    if (vkAllocateMemory(_device->getDevice(), &allocInfo, nullptr, &_vertexBufferMemory) != VK_SUCCESS)
-        Logger::log(FATAL, "Failed to allocate vertex buffer memory!");
-    vkBindBufferMemory(_device->getDevice(), _vertexBuffer, _vertexBufferMemory, 0);
+    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+    _vertexBuffer = std::make_unique<Buffer>(_device,
+                                             bufferSize,
+                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void* data;
-    vkMapMemory(_device->getDevice(), _vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-    memcpy(data, vertices.data(), bufferInfo.size);
-    vkUnmapMemory(_device->getDevice(), _vertexBufferMemory);
+    vkMapMemory(_device->getDevice(), _vertexBuffer->getMemory(), 0, bufferSize, 0, &data);
+    memcpy(data, vertices.data(), bufferSize);
+    vkUnmapMemory(_device->getDevice(), _vertexBuffer->getMemory());
 }
 
 void Pipeline::createCommandBuffers() {
@@ -435,7 +419,7 @@ void Pipeline::recordCommandBuffer(const VkCommandBuffer commandBuffer, const ui
     // Actually draw
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 
-    const VkBuffer vertexBuffers[] = { _vertexBuffer };
+    const VkBuffer vertexBuffers[] = { _vertexBuffer->getBuffer() };
     constexpr VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
@@ -474,15 +458,4 @@ void Pipeline::recreateSwapChain() {
     _swapChain.reset();
     _swapChain = std::make_unique<SwapChain>(_device);
     _swapChain->createFramebuffers(_renderPass);
-}
-
-uint32_t Pipeline::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const {
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(_device->getPhysicalDevice(), &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-        if (typeFilter & 1 << i && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-            return i;
-    } Logger::log(FATAL, "Failed to find suitable memory type!");
-    return 0; // Avoids compiler warnings
 }

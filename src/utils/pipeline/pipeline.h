@@ -12,6 +12,7 @@
 #include "../logger/logger.h"
 #include "../swapchain/swapchain.h"
 #include "../device/device.h"
+#include "../buffer/buffer.h"
 
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -73,8 +74,7 @@ private:
     VkPipelineLayout _pipelineLayout{};
     VkPipeline _graphicsPipeline{};
 
-    VkBuffer _vertexBuffer;
-    VkDeviceMemory _vertexBufferMemory;
+    std::unique_ptr<Buffer> _vertexBuffer;
 
     // TODO: Abstract command pools and buffers
     VkCommandPool _commandPool{};
@@ -101,8 +101,6 @@ private:
     void recordCommandBuffer(const VkCommandBuffer commandBuffer, const uint32_t imageIndex) const;
 
     void recreateSwapChain();
-
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 };
 
 #endif
