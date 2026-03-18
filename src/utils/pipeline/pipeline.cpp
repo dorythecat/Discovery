@@ -8,11 +8,17 @@ Pipeline::Pipeline(const std::unique_ptr<Device> &device) : _device(device.get()
     createGraphicsPipeline();
     _swapChain->createFramebuffers(_renderPass);
     createCommandPool();
+    createVertexBuffer();
     createCommandBuffers();
     createSyncObjects();
 }
 
 Pipeline::~Pipeline() {
+    _swapChain.reset();
+
+    vkDestroyBuffer(_device->getDevice(), _vertexBuffer, nullptr);
+    vkFreeMemory(_device->getDevice(), _vertexBufferMemory, nullptr);
+
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(_device->getDevice(), _imageAvailableSemaphores[i], nullptr);
         vkDestroySemaphore(_device->getDevice(), _renderFinishedSemaphores[i], nullptr);
@@ -24,8 +30,6 @@ Pipeline::~Pipeline() {
     vkDestroyPipeline(_device->getDevice(), _graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(_device->getDevice(), _pipelineLayout, nullptr);
     vkDestroyRenderPass(_device->getDevice(), _renderPass, nullptr);
-
-    _swapChain.reset();
 }
 
 void Pipeline::renderFrame() {
@@ -164,12 +168,14 @@ void Pipeline::createGraphicsPipeline() {
     VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
     // Fixed functions
+    auto bindingDescription = Vertex::getBindingDescription();
+    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -301,6 +307,35 @@ void Pipeline::createCommandPool() {
         Logger::log(FATAL, "Failed to create command pool!");
 }
 
+void Pipeline::createVertexBuffer() {
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(_device->getDevice(), &bufferInfo, nullptr, &_vertexBuffer) != VK_SUCCESS)
+        Logger::log(FATAL, "Failed to create vertex buffer!");
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(_device->getDevice(), _vertexBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (vkAllocateMemory(_device->getDevice(), &allocInfo, nullptr, &_vertexBufferMemory) != VK_SUCCESS)
+        Logger::log(FATAL, "Failed to allocate vertex buffer memory!");
+    vkBindBufferMemory(_device->getDevice(), _vertexBuffer, _vertexBufferMemory, 0);
+
+    void* data;
+    vkMapMemory(_device->getDevice(), _vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+    memcpy(data, vertices.data(), bufferInfo.size);
+    vkUnmapMemory(_device->getDevice(), _vertexBufferMemory);
+}
+
 void Pipeline::createCommandBuffers() {
     _commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -400,6 +435,12 @@ void Pipeline::recordCommandBuffer(const VkCommandBuffer commandBuffer, const ui
     // Actually draw
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 
+    const VkBuffer vertexBuffers[] = { _vertexBuffer };
+    constexpr VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+    vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -433,4 +474,15 @@ void Pipeline::recreateSwapChain() {
     _swapChain.reset();
     _swapChain = std::make_unique<SwapChain>(_device);
     _swapChain->createFramebuffers(_renderPass);
+}
+
+uint32_t Pipeline::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(_device->getPhysicalDevice(), &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if (typeFilter & 1 << i && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+            return i;
+    } Logger::log(FATAL, "Failed to find suitable memory type!");
+    return 0; // Avoids compiler warnings
 }
