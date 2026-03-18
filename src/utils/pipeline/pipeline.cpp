@@ -9,6 +9,7 @@ Pipeline::Pipeline(const std::unique_ptr<Device> &device) : _device(device.get()
     _swapChain->createFramebuffers(_renderPass);
     createCommandPool();
     createVertexBuffer();
+    createIndexBuffer();
     createCommandBuffers();
     createSyncObjects();
 }
@@ -17,6 +18,7 @@ Pipeline::~Pipeline() {
     _swapChain.reset();
 
     _vertexBuffer.reset();
+    _indexBuffer.reset();
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(_device->getDevice(), _imageAvailableSemaphores[i], nullptr);
@@ -171,6 +173,7 @@ void Pipeline::createGraphicsPipeline() {
     auto attributeDescriptions = Vertex::getAttributeDescriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
@@ -332,6 +335,32 @@ void Pipeline::createVertexBuffer() {
     stagingBuffer.reset();
 }
 
+void Pipeline::createIndexBuffer() {
+    VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+    auto stagingBuffer = std::make_unique<Buffer>(
+        _device,
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+
+    void* data;
+    vkMapMemory(_device->getDevice(), stagingBuffer->getMemory(), 0, bufferSize, 0, &data);
+    memcpy(data, indices.data(), bufferSize);
+    vkUnmapMemory(_device->getDevice(), stagingBuffer->getMemory());
+
+    _indexBuffer = std::make_unique<Buffer>(
+        _device,
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    );
+
+    stagingBuffer->copyTo(_indexBuffer.get(), bufferSize, _commandPool);
+    stagingBuffer.reset();
+}
+
 void Pipeline::createCommandBuffers() {
     _commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -431,12 +460,6 @@ void Pipeline::recordCommandBuffer(const VkCommandBuffer commandBuffer, const ui
     // Actually draw
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 
-    const VkBuffer vertexBuffers[] = { _vertexBuffer->getBuffer() };
-    constexpr VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
-    vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
-
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -451,7 +474,12 @@ void Pipeline::recordCommandBuffer(const VkCommandBuffer commandBuffer, const ui
     scissor.extent = _swapChain->getExtent();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    const VkBuffer vertexBuffers[] = { _vertexBuffer->getBuffer() };
+    constexpr VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)

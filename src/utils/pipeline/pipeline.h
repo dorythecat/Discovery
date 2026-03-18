@@ -51,11 +51,15 @@ struct Vertex {
 };
 
 const std::vector<Vertex> vertices = {
-    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
 };
 
+const std::vector<uint32_t> indices = {
+    0, 1, 2, 2, 3, 0
+};
 
 class Pipeline {
 public:
@@ -75,6 +79,7 @@ private:
     VkPipeline _graphicsPipeline{};
 
     std::unique_ptr<Buffer> _vertexBuffer;
+    std::unique_ptr<Buffer> _indexBuffer;
 
     // TODO: Abstract command pools and buffers
     VkCommandPool _commandPool{};
@@ -91,6 +96,7 @@ private:
     void createGraphicsPipeline();
     void createCommandPool();
     void createVertexBuffer();
+    void createIndexBuffer();
     void createCommandBuffers();
     void createSyncObjects();
 
