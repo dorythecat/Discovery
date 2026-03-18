@@ -5,7 +5,7 @@ Pipeline::Pipeline(const std::unique_ptr<SwapChain> &swapChain) : _swapChain(swa
 
     createRenderPass();
     createGraphicsPipeline();
-    createFramebuffers();
+    _swapChain->createFramebuffers(_renderPass);
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
@@ -19,9 +19,6 @@ Pipeline::~Pipeline() {
     }
 
     vkDestroyCommandPool(_device->getDevice(), _commandPool, nullptr);
-
-    for (const auto framebuffer : _swapChainFramebuffers)
-        vkDestroyFramebuffer(_device->getDevice(), framebuffer, nullptr);
 
     vkDestroyPipeline(_device->getDevice(), _graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(_device->getDevice(), _pipelineLayout, nullptr);
@@ -276,31 +273,6 @@ void Pipeline::createGraphicsPipeline() {
     vkDestroyShaderModule(_device->getDevice(), vertShaderModule, nullptr);
 }
 
-void Pipeline::createFramebuffers() {
-    _swapChainFramebuffers.resize(_swapChain->getImageViews().size());
-
-    for (size_t i = 0; i < _swapChain->getImageViews().size(); i++) {
-        const VkImageView attachments[] = {
-            _swapChain->getImageViews()[i]
-        };
-
-        VkFramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = _renderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = _swapChain->getExtent().width;
-        framebufferInfo.height = _swapChain->getExtent().height;
-        framebufferInfo.layers = 1;
-
-        if (vkCreateFramebuffer(_device->getDevice(),
-                                &framebufferInfo,
-                                nullptr,
-                                &_swapChainFramebuffers[i]) != VK_SUCCESS)
-            Logger::log(FATAL, "Failed to create framebuffer!");
-    }
-}
-
 void Pipeline::createCommandPool() {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -396,7 +368,7 @@ void Pipeline::recordCommandBuffer(const VkCommandBuffer commandBuffer, const ui
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = _renderPass;
-    renderPassInfo.framebuffer = _swapChainFramebuffers[imageIndex];
+    renderPassInfo.framebuffer = _swapChain->getFramebuffers()[imageIndex];
 
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = _swapChain->getExtent();

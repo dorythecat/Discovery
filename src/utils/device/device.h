@@ -59,6 +59,8 @@ public:
         return _presentQueue;
     }
 
+    void waitIdle() const { vkDeviceWaitIdle(_device); }
+
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) const;
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
 private:

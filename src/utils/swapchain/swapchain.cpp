@@ -6,6 +6,8 @@ SwapChain::SwapChain(const std::unique_ptr<Device> &device) : _device(device.get
 }
 
 SwapChain::~SwapChain() {
+    for (const auto framebuffer : _framebuffers)
+        vkDestroyFramebuffer(_device->getDevice(), framebuffer, nullptr);
     for (const auto imageView : _imageViews) vkDestroyImageView(_device->getDevice(), imageView, nullptr);
     vkDestroySwapchainKHR(_device->getDevice(), _swapChain, nullptr);
 }
@@ -91,6 +93,29 @@ void SwapChain::createImageViews() {
                                     nullptr,
                                     &_imageViews[i]) != VK_SUCCESS)
             Logger::log(FATAL, "Failed to create swap chain image views!");
+    }
+}
+
+void SwapChain::createFramebuffers(VkRenderPass renderPass) {
+    _framebuffers.resize(getImageViews().size());
+
+    for (size_t i = 0; i < getImageViews().size(); i++) {
+        const VkImageView attachments[] = { getImageViews()[i] };
+
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = renderPass;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = getExtent().width;
+        framebufferInfo.height = getExtent().height;
+        framebufferInfo.layers = 1;
+
+        if (vkCreateFramebuffer(_device->getDevice(),
+                                &framebufferInfo,
+                                nullptr,
+                                &_framebuffers[i]) != VK_SUCCESS)
+            Logger::log(FATAL, "Failed to create framebuffer!");
     }
 }
 

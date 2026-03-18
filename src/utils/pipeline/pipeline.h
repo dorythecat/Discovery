@@ -30,8 +30,6 @@ private:
     VkPipelineLayout _pipelineLayout{};
     VkPipeline _graphicsPipeline{};
 
-    std::vector<VkFramebuffer> _swapChainFramebuffers;
-
     // TODO: Abstract command pools and buffers
     VkCommandPool _commandPool{};
     std::vector<VkCommandBuffer> _commandBuffers;
@@ -45,7 +43,6 @@ private:
 
     void createRenderPass();
     void createGraphicsPipeline();
-    void createFramebuffers();
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();

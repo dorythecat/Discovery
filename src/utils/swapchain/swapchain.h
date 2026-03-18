@@ -28,6 +28,9 @@ public:
     VkExtent2D getExtent() const { return _extent; }
     std::vector<VkImage> getImages() const { return _images; }
     std::vector<VkImageView> getImageViews() const { return _imageViews; }
+    std::vector<VkFramebuffer> getFramebuffers() const { return _framebuffers; }
+
+    void createFramebuffers(VkRenderPass renderPass);
 private:
     Device* _device;
 
@@ -36,6 +39,7 @@ private:
     VkExtent2D _extent{};
     std::vector<VkImage> _images;
     std::vector<VkImageView> _imageViews;
+    std::vector<VkFramebuffer> _framebuffers;
 
     void createSwapChain();
     void createImageViews();
