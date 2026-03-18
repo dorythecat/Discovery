@@ -30,6 +30,9 @@ public:
     Window();
     ~Window();
 
+    Window(const Window &window) = delete;
+    Window& operator=(const Window &window) = delete;
+
     // Getter functions
     [[nodiscard]] VkInstance getInstance() const {
         if (_instance == nullptr)

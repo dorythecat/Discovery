@@ -7,6 +7,7 @@
 #include <map>
 #include <set>
 #include <optional>
+#include <memory>
 
 #include "../logger/logger.h"
 #include "../window/window.h"
@@ -30,9 +31,13 @@ public:
         [[nodiscard]] bool isComplete() const { return graphicsFamily.has_value() && presentFamily.has_value(); }
     };
 
-    explicit Device(const Window &window);
+    explicit Device(const std::unique_ptr<Window> &window);
     ~Device();
 
+    Device(const Device &device) = delete;
+    Device& operator=(const Device &device) = delete;
+
+    [[nodiscard]] Window* getWindow() const { return _window; }
     [[nodiscard]] VkPhysicalDevice getPhysicalDevice() const {
         if (_device == nullptr)
             Logger::log(FATAL, "Tried to access physical device that hasn't been created yet!");
@@ -57,7 +62,7 @@ public:
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) const;
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
 private:
-    Window _window;
+    Window* _window;
     VkPhysicalDevice _physicalDevice = nullptr;
     VkDevice _device = nullptr;
 

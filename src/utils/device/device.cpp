@@ -1,6 +1,6 @@
 #include "device.h"
 
-Device::Device(const Window &window) : _window(window) {
+Device::Device(const std::unique_ptr<Window> &window) : _window(window.get()) {
     pickPhysicalDevice();
     createLogicalDevice();
 }
@@ -12,12 +12,12 @@ Device::~Device() {
 
 void Device::pickPhysicalDevice() {
     uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(_window.getInstance(), &deviceCount, nullptr);
+    vkEnumeratePhysicalDevices(_window->getInstance(), &deviceCount, nullptr);
 
     if (deviceCount == 0) Logger::log(FATAL, "Failed to find GPUs with Vulkan support!");
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(_window.getInstance(), &deviceCount, devices.data());
+    vkEnumeratePhysicalDevices(_window->getInstance(), &deviceCount, devices.data());
 
     // Use an ordered map to automatically sort candidates by increasing score
     std::multimap<int, VkPhysicalDevice> candidates;
@@ -81,22 +81,22 @@ void Device::createLogicalDevice() {
 Device::SwapChainSupportDetails Device::querySwapChainSupport(const VkPhysicalDevice device) const {
     SwapChainSupportDetails details;
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, _window.getSurface(), &details.capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, _window->getSurface(), &details.capabilities);
 
     uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, _window.getSurface(), &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, _window->getSurface(), &formatCount, nullptr);
 
     if (formatCount != 0) {
         details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, _window.getSurface(), &formatCount, details.formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, _window->getSurface(), &formatCount, details.formats.data());
     }
 
     uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, _window.getSurface(), &presentModeCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, _window->getSurface(), &presentModeCount, nullptr);
 
     if (presentModeCount != 0) {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, _window.getSurface(), &presentModeCount, details.presentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, _window->getSurface(), &presentModeCount, details.presentModes.data());
     }
 
     return details;
@@ -114,7 +114,7 @@ Device::QueueFamilyIndices Device::findQueueFamilies(const VkPhysicalDevice devi
     uint32_t i = 0;
     for (const auto& queueFamily : queueFamilies) {
         VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, _window.getSurface(), &presentSupport);
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, _window->getSurface(), &presentSupport);
 
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) indices.graphicsFamily = i;
         if (presentSupport) indices.presentFamily = i;
@@ -142,7 +142,7 @@ uint32_t Device::rateDeviceSuitability(const VkPhysicalDevice device) const {
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
     vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
     uint32_t surfaceFormatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, _window.getSurface(), &surfaceFormatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, _window->getSurface(), &surfaceFormatCount, nullptr);
 
     bool swapChainAdequate = false;
     if (checkDeviceExtensionSupport(device)) {
