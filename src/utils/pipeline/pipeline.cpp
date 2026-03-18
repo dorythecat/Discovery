@@ -28,21 +28,30 @@ Pipeline::~Pipeline() {
     _swapChain.reset();
 }
 
-void Pipeline::renderFrame() const {
+void Pipeline::renderFrame() {
     vkWaitForFences(_device->getDevice(),
                     1,
                     &_inFlightFences[_currentFrame],
                     VK_TRUE,
                     UINT64_MAX);
-    vkResetFences(_device->getDevice(), 1, &_inFlightFences[_currentFrame]);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(_device->getDevice(),
-                          _swapChain->getSwapChain(),
-                          UINT64_MAX,
-                          _imageAvailableSemaphores[_currentFrame],
-                          VK_NULL_HANDLE,
-                          &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(_device->getDevice(),
+                                            _swapChain->getSwapChain(),
+                                            UINT64_MAX,
+                                            _imageAvailableSemaphores[_currentFrame],
+                                            VK_NULL_HANDLE,
+                                            &imageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapChain();
+        return;
+    }
+
+    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+        Logger::log(FATAL, "Failed to acquire swap chain image!");
+
+    vkResetFences(_device->getDevice(), 1, &_inFlightFences[_currentFrame]);
 
     vkResetCommandBuffer(_commandBuffers[_currentFrame], 0);
     recordCommandBuffer(_commandBuffers[_currentFrame], imageIndex);
@@ -80,7 +89,15 @@ void Pipeline::renderFrame() const {
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr; // Optional
 
-    vkQueuePresentKHR(_device->getPresentQueue(), &presentInfo);
+    result = vkQueuePresentKHR(_device->getPresentQueue(), &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _device->getWindow()->framebufferResized) {
+        _device->getWindow()->framebufferResized = false;
+        recreateSwapChain();
+    } else if (result != VK_SUCCESS)
+        Logger::log(FATAL, "Failed to present swap chain image!");
+
+    _currentFrame = (_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Pipeline::createRenderPass() {
@@ -122,8 +139,6 @@ void Pipeline::createRenderPass() {
 
     if (vkCreateRenderPass(_device->getDevice(), &renderPassInfo, nullptr, &_renderPass) != VK_SUCCESS)
         Logger::log(FATAL, "Failed to create render pass!");
-
-    _currentFrame = (_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Pipeline::createGraphicsPipeline() {
@@ -269,7 +284,7 @@ void Pipeline::createGraphicsPipeline() {
             1,
             &pipelineInfo,
             nullptr,
-            &_graphicsPipeline) != VK_SUCCESS) throw std::runtime_error("failed to create graphics pipeline!");
+            &_graphicsPipeline) != VK_SUCCESS) Logger::log(FATAL, "Failed to create graphics pipeline!");
 
     // Clean up shader modules
     vkDestroyShaderModule(_device->getDevice(), fragShaderModule, nullptr);
@@ -404,4 +419,18 @@ void Pipeline::recordCommandBuffer(const VkCommandBuffer commandBuffer, const ui
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
         Logger::log(FATAL, "Failed to record command buffer!");
+}
+
+void Pipeline::recreateSwapChain() {
+    VkExtent2D windowSize = _device->getWindow()->getExtent();
+    while (windowSize.width == 0 || windowSize.height == 0) {
+        windowSize = _device->getWindow()->getExtent();
+        Window::waitEvents();
+    }
+
+    _device->waitIdle();
+
+    _swapChain.reset();
+    _swapChain = std::make_unique<SwapChain>(_device);
+    _swapChain->createFramebuffers(_renderPass);
 }

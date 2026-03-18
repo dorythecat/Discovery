@@ -4,9 +4,10 @@ Window::Window() {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // TODO: Make resizable
 
     _window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Testing", nullptr, nullptr);
+    glfwSetWindowUserPointer(_window, this);
+    glfwSetFramebufferSizeCallback(_window, framebufferResizeCallback);
 
     createInstance();
     setupDebugMessenger();
@@ -154,4 +155,9 @@ void Window::DestroyDebugUtilsMessengerEXT(const VkInstance instance,
         vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT")
     );
     if (func != nullptr) func(instance, debugMessenger, pAllocator);
+}
+
+void Window::framebufferResizeCallback(GLFWwindow *window, int width, int height) {
+    auto _window = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    _window->framebufferResized = true;
 }

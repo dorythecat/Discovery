@@ -21,7 +21,7 @@ public:
     Pipeline(const Pipeline &pipeline) = delete;
     Pipeline& operator=(const Pipeline &pipeline) = delete;
 
-    void renderFrame() const;
+    void renderFrame();
 private:
     std::unique_ptr<SwapChain> _swapChain;
     Device* _device;
@@ -52,6 +52,8 @@ private:
     VkShaderModule createShaderModule(const std::vector<char> &code) const;
 
     void recordCommandBuffer(const VkCommandBuffer commandBuffer, const uint32_t imageIndex) const;
+
+    void recreateSwapChain();
 };
 
 #endif

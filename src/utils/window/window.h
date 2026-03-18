@@ -27,6 +27,8 @@ const std::vector<const char*> validationLayers = {
 
 class Window {
 public:
+    bool framebufferResized;
+
     Window();
     ~Window();
 
@@ -55,10 +57,17 @@ public:
 
         return { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
     }
+    static std::vector<const char*> getGLFWExtensions();
+
     [[nodiscard]] bool shouldClose() const { return glfwWindowShouldClose(_window); }
     static void pollEvents() { glfwPollEvents(); }
+    static void waitEvents() { glfwWaitEvents(); }
 
-    static std::vector<const char*> getGLFWExtensions();
+    template<typename T>
+    void setResizeCallback(const GLFWframebuffersizefun function, T userPointer = nullptr) {
+        if (userPointer != nullptr) glfwSetWindowUserPointer(_window, userPointer);
+        glfwSetFramebufferSizeCallback(_window, function);
+    }
 private:
     GLFWwindow* _window;
     VkInstance _instance = nullptr;
@@ -96,6 +105,8 @@ private:
     static void DestroyDebugUtilsMessengerEXT(const VkInstance instance,
                                               const VkDebugUtilsMessengerEXT debugMessenger,
                                               const VkAllocationCallbacks* pAllocator);
+
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 };
 
 
