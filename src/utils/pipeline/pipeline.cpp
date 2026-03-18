@@ -308,16 +308,28 @@ void Pipeline::createCommandPool() {
 
 void Pipeline::createVertexBuffer() {
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-    _vertexBuffer = std::make_unique<Buffer>(_device,
-                                             bufferSize,
-                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    auto stagingBuffer = std::make_unique<Buffer>(
+        _device,
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
 
     void* data;
-    vkMapMemory(_device->getDevice(), _vertexBuffer->getMemory(), 0, bufferSize, 0, &data);
+    vkMapMemory(_device->getDevice(), stagingBuffer->getMemory(), 0, bufferSize, 0, &data);
     memcpy(data, vertices.data(), bufferSize);
-    vkUnmapMemory(_device->getDevice(), _vertexBuffer->getMemory());
+    vkUnmapMemory(_device->getDevice(), stagingBuffer->getMemory());
+
+    _vertexBuffer = std::make_unique<Buffer>(
+        _device,
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    );
+
+    stagingBuffer->copyTo(_vertexBuffer.get(), bufferSize, _commandPool);
+    stagingBuffer.reset();
 }
 
 void Pipeline::createCommandBuffers() {

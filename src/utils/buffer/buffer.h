@@ -19,6 +19,8 @@ public:
 
     [[nodiscard]] VkBuffer getBuffer() const { return _buffer; }
     [[nodiscard]] VkDeviceMemory getMemory() const { return _memory; }
+
+    void copyTo(Buffer* dst, VkDeviceSize size, VkCommandPool commandPool) const;
 private:
     Device* _device;
 
