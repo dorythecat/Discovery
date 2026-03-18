@@ -56,6 +56,7 @@ public:
         return { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
     }
     [[nodiscard]] bool shouldClose() const { return glfwWindowShouldClose(_window); }
+    static void pollEvents() { glfwPollEvents(); }
 
     static std::vector<const char*> getGLFWExtensions();
 private:

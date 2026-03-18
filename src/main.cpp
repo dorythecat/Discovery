@@ -1,7 +1,4 @@
-#include <vulkan/vulkan.h>
-
 #include <cstdlib>
-#include <optional>
 #include <memory>
 
 #include "utils/logger/logger.h"
@@ -31,7 +28,7 @@ private:
 
     void mainLoop() const {
         while (!_window->shouldClose()) {
-            glfwPollEvents();
+            Window::pollEvents();
             _pipeline->renderFrame();
         }
     }
