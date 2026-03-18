@@ -10,9 +10,7 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 
 file(GLOB_RECURSE sources src/*.cpp src/*.h)
-add_executable(${PROJECT_NAME} ${sources}
-        src/utils/buffer/buffer.cpp
-        src/utils/buffer/buffer.h)
+add_executable(${PROJECT_NAME} ${sources})
 
 # Run shader compilation script to generate vert.spv and frag.spv
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/res/shaders)
