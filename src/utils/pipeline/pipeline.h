@@ -75,6 +75,7 @@ private:
     Device* _device;
 
     VkRenderPass _renderPass{};
+    VkDescriptorSetLayout _descriptorSetLayout;
     VkPipelineLayout _pipelineLayout{};
     VkPipeline _graphicsPipeline{};
 
@@ -93,6 +94,7 @@ private:
     uint32_t _currentFrame = 0;
 
     void createRenderPass();
+    void createDescriptorSetLayout();
     void createGraphicsPipeline();
     void createCommandPool();
     void createVertexBuffer();
