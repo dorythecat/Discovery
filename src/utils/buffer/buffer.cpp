@@ -67,6 +67,10 @@ void Buffer::copyTo(const Buffer* dst, const VkDeviceSize size, const VkCommandP
     vkFreeCommandBuffers(_device->getDevice(), commandPool, 1, &commandBuffer);
 }
 
+void Buffer::mapMemory(const VkDeviceSize offset, const VkDeviceSize size, const VkMemoryMapFlags flags, void **ppData) const {
+    vkMapMemory(_device->getDevice(), _memory, offset, size, flags, ppData);
+}
+
 uint32_t Buffer::findMemoryType(const uint32_t typeFilter, const VkMemoryPropertyFlags properties) const {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(_device->getPhysicalDevice(), &memProperties);

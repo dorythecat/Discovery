@@ -21,6 +21,7 @@ public:
     [[nodiscard]] VkDeviceMemory getMemory() const { return _memory; }
 
     void copyTo(const Buffer* dst, VkDeviceSize size, VkCommandPool commandPool) const;
+    void mapMemory(VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void **ppData) const;
 private:
     Device* _device;
 

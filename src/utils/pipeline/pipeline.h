@@ -1,9 +1,13 @@
 #ifndef PIPELINE_H
 #define PIPELINE_H
 
+#define GLM_FORCE_RADIANS
+
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
+#include <chrono>
 #include <vector>
 #include <memory>
 #include <fstream>
@@ -17,6 +21,12 @@
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 // TODO(Maybe): Replace GLM for my own vectors and stuff :3
+struct UniformBufferObject {
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+};
+
 struct Vertex {
     glm::vec2 pos;
     glm::vec3 color;
@@ -82,11 +92,16 @@ private:
     std::unique_ptr<Buffer> _vertexBuffer;
     std::unique_ptr<Buffer> _indexBuffer;
 
-    // TODO: Abstract command pools and buffers
+    std::vector<std::unique_ptr<Buffer>> _uniformBuffers;
+    std::vector<void*> _uniformBuffersMapped;
+
+    // TODO: Abstract all of these
+    VkDescriptorPool _descriptorPool{};
+    std::vector<VkDescriptorSet> _descriptorSets;
+
     VkCommandPool _commandPool{};
     std::vector<VkCommandBuffer> _commandBuffers;
 
-    // TODO(maybe): Abstract sync objects
     std::vector<VkSemaphore> _imageAvailableSemaphores;
     std::vector<VkSemaphore> _renderFinishedSemaphores;
     std::vector<VkFence> _inFlightFences;
@@ -99,8 +114,13 @@ private:
     void createCommandPool();
     void createVertexBuffer();
     void createIndexBuffer();
+    void createUniformBuffers();
+    void createDescriptorPool();
+    void createDescriptorSets();
     void createCommandBuffers();
     void createSyncObjects();
+
+    void updateUniformBuffer(uint32_t currentImage);
 
     // TODO: Move the shader handling to its own class
     static std::vector<char> readFile(const std::string &filename);

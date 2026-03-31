@@ -11,12 +11,19 @@ Pipeline::Pipeline(const std::unique_ptr<Device> &device) : _device(device.get()
     createCommandPool();
     createVertexBuffer();
     createIndexBuffer();
+    createUniformBuffers();
+    createDescriptorPool();
+    createDescriptorSets();
     createCommandBuffers();
     createSyncObjects();
 }
 
 Pipeline::~Pipeline() {
     _swapChain.reset();
+
+    vkDestroyDescriptorPool(_device->getDevice(), _descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(_device->getDevice(), _descriptorSetLayout, nullptr);
+    for (auto &_uniformBuffer : _uniformBuffers) _uniformBuffer.reset();
 
     vkDestroyDescriptorSetLayout(_device->getDevice(), _descriptorSetLayout, nullptr);
 
@@ -59,6 +66,8 @@ void Pipeline::renderFrame() {
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         Logger::log(FATAL, "Failed to acquire swap chain image!");
 
+    updateUniformBuffer(_currentFrame);
+
     vkResetFences(_device->getDevice(), 1, &_inFlightFences[_currentFrame]);
 
     vkResetCommandBuffer(_commandBuffers[_currentFrame], 0);
@@ -67,8 +76,8 @@ void Pipeline::renderFrame() {
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = { _imageAvailableSemaphores[_currentFrame] };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    const VkSemaphore waitSemaphores[] = { _imageAvailableSemaphores[_currentFrame] };
+    const VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
@@ -244,7 +253,7 @@ void Pipeline::createGraphicsPipeline() {
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL; // TODO: Add a way to allow for wireframe rendering
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.depthBiasConstantFactor = 0.0f; // Optional
     rasterizer.depthBiasClamp = 0.0f; // Optional
@@ -385,6 +394,70 @@ void Pipeline::createIndexBuffer() {
     stagingBuffer.reset();
 }
 
+void Pipeline::createUniformBuffers() {
+    _uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    _uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+        _uniformBuffers[i] = std::make_unique<Buffer>(
+            _device,
+            bufferSize,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+        _uniformBuffers[i]->mapMemory(0, bufferSize, 0, &_uniformBuffersMapped[i]);
+    }
+}
+
+void Pipeline::createDescriptorPool() {
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = MAX_FRAMES_IN_FLIGHT;
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
+
+    if (vkCreateDescriptorPool(_device->getDevice(), &poolInfo, nullptr, &_descriptorPool) != VK_SUCCESS)
+        Logger::log(FATAL, "Failed to create descriptor pool!");
+}
+
+void Pipeline::createDescriptorSets() {
+    const std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, _descriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = _descriptorPool;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    allocInfo.pSetLayouts = layouts.data();
+
+    _descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+    if (vkAllocateDescriptorSets(_device->getDevice(), &allocInfo, _descriptorSets.data()) != VK_SUCCESS)
+        Logger::log(FATAL, "Failed to allocate descriptor sets!");
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = _uniformBuffers[i]->getBuffer();
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UniformBufferObject);
+
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = _descriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        descriptorWrite.pImageInfo = nullptr; // Optional
+        descriptorWrite.pTexelBufferView = nullptr; // Optional
+
+        vkUpdateDescriptorSets(_device->getDevice(), 1, &descriptorWrite, 0, nullptr);
+    }
+}
+
 void Pipeline::createCommandBuffers() {
     _commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -429,6 +502,19 @@ void Pipeline::createSyncObjects() {
                           &_inFlightFences[i]) != VK_SUCCESS)
             Logger::log(FATAL, "Failed to create in-flight fence!");
     }
+}
+
+void Pipeline::updateUniformBuffer(uint32_t currentImage) {
+    static auto startTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - startTime).count();
+
+    UniformBufferObject ubo{};
+    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.proj = glm::perspective(glm::radians(45.0f), _swapChain->getExtent().width / static_cast<float>(_swapChain->getExtent().height), 0.1f, 10.0f);
+    ubo.proj[1][1] *= -1;
+
+    memcpy(_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
 
 std::vector<char> Pipeline::readFile(const std::string &filename) {
@@ -503,6 +589,14 @@ void Pipeline::recordCommandBuffer(const VkCommandBuffer commandBuffer, const ui
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(commandBuffer, _indexBuffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
+    vkCmdBindDescriptorSets(commandBuffer,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            _pipelineLayout,
+                            0,
+                            1,
+                            &_descriptorSets[_currentFrame],
+                            0,
+                            nullptr);
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
     vkCmdEndRenderPass(commandBuffer);
 
