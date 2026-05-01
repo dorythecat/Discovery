@@ -8,5 +8,7 @@ As of now, I have only implemented basic rendering, without any of the cool feat
 # Note
 This game is not even close to finished. Right now, you can't even move. So yeah... Not there yet xd
 
+P.S. If an eror pops up that isn't the one mentioned above, then you probably have something wrong with your downloaded release. File not found errors might be found if you lack the appropiate shader files or similar. If in doubt, compile from source. It's almost easier than fighting the release (I rushed it a lot xd)
+
 # Demo video
 https://github.com/user-attachments/assets/e5f48b9f-ed1a-49c4-a775-b9d5f882c45b
